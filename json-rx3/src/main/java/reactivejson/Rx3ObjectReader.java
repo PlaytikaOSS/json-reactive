@@ -1,19 +1,19 @@
 package reactivejson;
 
 
-import io.reactivex.Flowable;
-import io.reactivex.Single;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Single;
 import org.reactivestreams.Publisher;
 import tools.jackson.core.json.JsonFactory;
 import tools.jackson.databind.ObjectReader;
 
 import java.nio.ByteBuffer;
 
-public class Rx2ObjectReader {
+public class Rx3ObjectReader {
 
 	private final JsonFactory jsonFactory;
 
-	public Rx2ObjectReader(JsonFactory jsonFactory) {
+	public Rx3ObjectReader(JsonFactory jsonFactory) {
 		this.jsonFactory = jsonFactory;
 	}
 

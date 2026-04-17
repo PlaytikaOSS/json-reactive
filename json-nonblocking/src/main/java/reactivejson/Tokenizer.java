@@ -16,13 +16,13 @@
 
 package reactivejson;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.core.async.ByteBufferFeeder;
-import com.fasterxml.jackson.databind.util.TokenBuffer;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.core.ObjectReadContext;
+import tools.jackson.core.async.ByteBufferFeeder;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.databind.util.TokenBuffer;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,11 +31,11 @@ import java.util.List;
  * Allows to read nonblocking a JSON stream of arbitrary size, byte array
  * chunks as TokenBuffers where each token buffer is a
  * well-formed JSON object.
- *
+ * <p>
  * Copied from Spring's Jackson2Tokenizer
  *
  */
-class Tokenizer {
+class Tokenizer implements AutoCloseable {
 
 	private final JsonParser parser;
 
@@ -49,31 +49,40 @@ class Tokenizer {
 
 	private final ByteBufferFeeder inputFeeder;
 
-	public Tokenizer(JsonFactory jsonFactory, boolean tokenizeArrayElements) throws IOException {
-		this.parser = jsonFactory.createNonBlockingByteArrayParser();
+	Tokenizer(JsonFactory jsonFactory, boolean tokenizeArrayElements) {
+		this.parser = jsonFactory.createNonBlockingByteBufferParser(ObjectReadContext.empty());
 		this.tokenizeArrayElements = tokenizeArrayElements;
-		this.tokenBuffer = new TokenBuffer(parser);
-		this.inputFeeder = (ByteBufferFeeder) this.parser.getNonBlockingInputFeeder();
+		this.tokenBuffer = TokenBuffer.forBuffering(parser, ObjectReadContext.empty());
+		this.inputFeeder = (ByteBufferFeeder) this.parser.nonBlockingInputFeeder();
 	}
 
-	public List<TokenBuffer> tokenize(ByteBuffer byteBuffer) throws IOException {
+	List<TokenBuffer> tokenize(ByteBuffer byteBuffer) {
 		inputFeeder.feedInput(byteBuffer);
 		return parse();
 	}
 
-	public List<TokenBuffer> endOfInput() throws IOException {
+	List<TokenBuffer> endOfInput() {
 		inputFeeder.endOfInput();
 		return parse();
 	}
 
-	private List<TokenBuffer> parse() throws IOException {
+	@Override
+	public void close() {
+		parser.close();
+	}
+
+	private List<TokenBuffer> parse() {
 		List<TokenBuffer> result = new ArrayList<>();
 
 		while (true) {
 			JsonToken token = this.parser.nextToken();
-			// SPR-16151: Smile data format uses null to separate documents
-			if ((token == JsonToken.NOT_AVAILABLE) ||
-					(token == null && (token = this.parser.nextToken()) == null)) {
+			if (token == JsonToken.NOT_AVAILABLE) {
+				break;
+			}
+			if (token == null) {
+				// Spring's original Jackson2Tokenizer probed once more here because the Smile
+				// binary format uses null tokens as document separators (SPR-16151). We only
+				// run on JsonFactory, so any null on the JSON path is a true end-of-input.
 				break;
 			}
 			updateDepth(token);
@@ -105,18 +114,18 @@ class Tokenizer {
 		}
 	}
 
-	private void processTokenNormal(JsonToken token, List<TokenBuffer> result) throws IOException {
+	private void processTokenNormal(JsonToken token, List<TokenBuffer> result) {
 		this.tokenBuffer.copyCurrentEvent(this.parser);
 
 		if ((token.isStructEnd() || token.isScalarValue()) &&
 				this.objectDepth == 0 && this.arrayDepth == 0) {
 			result.add(this.tokenBuffer);
-			this.tokenBuffer = new TokenBuffer(this.parser);
+			this.tokenBuffer = TokenBuffer.forBuffering(this.parser, ObjectReadContext.empty());
 		}
 
 	}
 
-	private void processTokenArray(JsonToken token, List<TokenBuffer> result) throws IOException {
+	private void processTokenArray(JsonToken token, List<TokenBuffer> result) {
 		if (!isTopLevelArrayToken(token)) {
 			this.tokenBuffer.copyCurrentEvent(this.parser);
 		}
@@ -125,7 +134,7 @@ class Tokenizer {
 				(this.arrayDepth == 0 || this.arrayDepth == 1) &&
 				(token == JsonToken.END_OBJECT || token.isScalarValue())) {
 			result.add(this.tokenBuffer);
-			this.tokenBuffer = new TokenBuffer(this.parser);
+			this.tokenBuffer = TokenBuffer.forBuffering(this.parser, ObjectReadContext.empty());
 		}
 	}
 

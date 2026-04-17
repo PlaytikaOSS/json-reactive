@@ -16,16 +16,17 @@
 
 package reactivejson;
 
-import com.fasterxml.jackson.core.TreeNode;
-import com.fasterxml.jackson.core.async_.JsonFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.util.TokenBuffer;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import tools.jackson.core.TreeNode;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.util.TokenBuffer;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -36,191 +37,163 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Copied from Spring's Jackson2TokenizerTest
- */
-public class TokenizerTest {
+@DisplayName("Tokenizer")
+class TokenizerTest {
 
 	private ObjectReader objectReader;
 
 	private JsonFactory jsonFactory;
 
-	@Before
-	public void createReader() {
+	@BeforeEach
+	void createReader() {
+		//given: a fresh factory and reader per test
 		this.jsonFactory = new JsonFactory();
-		this.objectReader = new ObjectMapper(this.jsonFactory).reader();
+		ObjectMapper mapper = JsonMapper.builder(jsonFactory).build();
+		this.objectReader = mapper.reader();
 	}
 
-	@Test
-	public void doNotTokenizeArrayElements() {
-		testTokenize(
-				singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"),
-				singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"), false);
+	@Nested
+	@DisplayName("when array elements are not tokenized")
+	class DoNotTokenizeArrayElements {
 
-		testTokenize(
-				asList("{\"foo\": \"foofoo\"",
-						", \"bar\": \"barbar\"}"),
-				singletonList("{\"foo\":\"foofoo\",\"bar\":\"barbar\"}"), false);
+		@Test
+		@DisplayName("should emit whole top-level objects, arrays and scalars")
+		void doNotTokenizeArrayElements() {
+			//given: single complete object
+			//when/then:
+			testTokenize(
+					singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"),
+					singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"), false);
 
-		testTokenize(
-				singletonList("[" +
-						"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
-				singletonList("[" +
-						"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"), false);
+			//given: object split across two chunks
+			//when/then:
+			testTokenize(
+					asList("{\"foo\": \"foofoo\"",
+							", \"bar\": \"barbar\"}"),
+					singletonList("{\"foo\":\"foofoo\",\"bar\":\"barbar\"}"), false);
 
-		testTokenize(
-				singletonList("[{\"foo\": \"bar\"},{\"foo\": \"baz\"}]"),
-				singletonList("[{\"foo\": \"bar\"},{\"foo\": \"baz\"}]"), false);
+			//given: top-level array as single chunk
+			//when/then:
+			testTokenize(
+					singletonList("[" +
+							"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
+					singletonList("[" +
+							"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"), false);
 
-		testTokenize(
-				asList("[" +
-						"{\"foo\": \"foofoo\", \"bar\"", ": \"barbar\"}," +
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
-				singletonList("[" +
-						"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"), false);
+			testTokenize(
+					singletonList("[{\"foo\": \"bar\"},{\"foo\": \"baz\"}]"),
+					singletonList("[{\"foo\": \"bar\"},{\"foo\": \"baz\"}]"), false);
 
-		testTokenize(
-				asList("[",
-						"{\"id\":1,\"name\":\"Robert\"}", ",",
-						"{\"id\":2,\"name\":\"Raide\"}", ",",
-						"{\"id\":3,\"name\":\"Ford\"}", "]"),
-				singletonList("[" +
-						"{\"id\":1,\"name\":\"Robert\"}," +
-						"{\"id\":2,\"name\":\"Raide\"}," +
-						"{\"id\":3,\"name\":\"Ford\"}]"), false);
+			testTokenize(
+					asList("[" +
+							"{\"foo\": \"foofoo\", \"bar\"", ": \"barbar\"}," +
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
+					singletonList("[" +
+							"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"), false);
 
-		// SPR-16166: top-level JSON values
-		testTokenize(asList("\"foo", "bar\""),singletonList("\"foobar\""), false);
+			testTokenize(
+					asList("[",
+							"{\"id\":1,\"name\":\"Robert\"}", ",",
+							"{\"id\":2,\"name\":\"Raide\"}", ",",
+							"{\"id\":3,\"name\":\"Ford\"}", "]"),
+					singletonList("[" +
+							"{\"id\":1,\"name\":\"Robert\"}," +
+							"{\"id\":2,\"name\":\"Raide\"}," +
+							"{\"id\":3,\"name\":\"Ford\"}]"), false);
 
-		testTokenize(asList("12", "34"),singletonList("1234"), false);
-
-		testTokenize(asList("12.", "34"),singletonList("12.34"), false);
-
-		// note that we do not test for null, true, or false, which are also valid top-level values,
-		// but are unsupported by JSONassert
+			//given: top-level scalar values split across chunks (SPR-16166)
+			//when/then:
+			testTokenize(asList("\"foo", "bar\""), singletonList("\"foobar\""), false);
+			testTokenize(asList("12", "34"), singletonList("1234"), false);
+			testTokenize(asList("12.", "34"), singletonList("12.34"), false);
+		}
 	}
 
-	@Test
-	public void tokenizeArrayElements() {
-		testTokenize(
-				singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"),
-				singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"), true);
+	@Nested
+	@DisplayName("when array elements are tokenized")
+	class TokenizeArrayElements {
 
-		testTokenize(
-				asList("{\"foo\": \"foofoo\"", ", \"bar\": \"barbar\"}"),
-				singletonList("{\"foo\":\"foofoo\",\"bar\":\"barbar\"}"), true);
+		@Test
+		@DisplayName("should emit each top-level element independently")
+		void tokenizeArrayElements() {
+			testTokenize(
+					singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"),
+					singletonList("{\"foo\": \"foofoo\", \"bar\": \"barbar\"}"), true);
 
-		testTokenize(
-				singletonList("[" +
-						"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
-				asList(
-						"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}",
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}"), true);
+			testTokenize(
+					asList("{\"foo\": \"foofoo\"", ", \"bar\": \"barbar\"}"),
+					singletonList("{\"foo\":\"foofoo\",\"bar\":\"barbar\"}"), true);
 
-		testTokenize(
-				singletonList("[{\"foo\": \"bar\"},{\"foo\": \"baz\"}]"),
-				asList("{\"foo\": \"bar\"}", "{\"foo\": \"baz\"}"), true);
+			testTokenize(
+					singletonList("[" +
+							"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}," +
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
+					asList(
+							"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}",
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}"), true);
 
-		// SPR-15803: nested array
-		testTokenize(
-				singletonList("[" +
-						"{\"id\":\"0\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}," +
-						"{\"id\":\"1\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}," +
-						"{\"id\":\"2\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}" +
-						"]"),
-				asList(
-						"{\"id\":\"0\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}",
-						"{\"id\":\"1\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}",
-						"{\"id\":\"2\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}"), true);
+			testTokenize(
+					singletonList("[{\"foo\": \"bar\"},{\"foo\": \"baz\"}]"),
+					asList("{\"foo\": \"bar\"}", "{\"foo\": \"baz\"}"), true);
 
-		// SPR-15803: nested array, no top-level array
-		testTokenize(
-				singletonList("{\"speakerIds\":[\"tastapod\"],\"language\":\"ENGLISH\"}"),
-				singletonList("{\"speakerIds\":[\"tastapod\"],\"language\":\"ENGLISH\"}"), true);
+			//given: nested array inside each element (SPR-15803)
+			//when/then:
+			testTokenize(
+					singletonList("[" +
+							"{\"id\":\"0\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}," +
+							"{\"id\":\"1\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}," +
+							"{\"id\":\"2\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}" +
+							"]"),
+					asList(
+							"{\"id\":\"0\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}",
+							"{\"id\":\"1\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}",
+							"{\"id\":\"2\",\"start\":[-999999999,1,1],\"end\":[999999999,12,31]}"), true);
 
-		testTokenize(
-				asList("[" +
-						"{\"foo\": \"foofoo\", \"bar\"", ": \"barbar\"}," +
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
-				asList(
-						"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}",
-						"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}"), true);
+			//given: nested array without a top-level array (SPR-15803)
+			//when/then:
+			testTokenize(
+					singletonList("{\"speakerIds\":[\"tastapod\"],\"language\":\"ENGLISH\"}"),
+					singletonList("{\"speakerIds\":[\"tastapod\"],\"language\":\"ENGLISH\"}"), true);
 
-		testTokenize(
-				asList("[",
-						"{\"id\":1,\"name\":\"Robert\"}",
-						",",
-						"{\"id\":2,\"name\":\"Raide\"}",
-						",",
-						"{\"id\":3,\"name\":\"Ford\"}",
-						"]"),
-				asList("{\"id\":1,\"name\":\"Robert\"}",
-						"{\"id\":2,\"name\":\"Raide\"}",
-						"{\"id\":3,\"name\":\"Ford\"}"), true);
+			testTokenize(
+					asList("[" +
+							"{\"foo\": \"foofoo\", \"bar\"", ": \"barbar\"}," +
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}]"),
+					asList(
+							"{\"foo\": \"foofoo\", \"bar\": \"barbar\"}",
+							"{\"foo\": \"foofoofoo\", \"bar\": \"barbarbar\"}"), true);
 
-		// SPR-16166: top-level JSON values
-		testTokenize(asList("\"foo", "bar\""),singletonList("\"foobar\""), true);
+			testTokenize(
+					asList("[",
+							"{\"id\":1,\"name\":\"Robert\"}",
+							",",
+							"{\"id\":2,\"name\":\"Raide\"}",
+							",",
+							"{\"id\":3,\"name\":\"Ford\"}",
+							"]"),
+					asList("{\"id\":1,\"name\":\"Robert\"}",
+							"{\"id\":2,\"name\":\"Raide\"}",
+							"{\"id\":3,\"name\":\"Ford\"}"), true);
 
-		testTokenize(asList("12", "34"),singletonList("1234"), true);
+			testTokenize(asList("\"foo", "bar\""), singletonList("\"foobar\""), true);
+			testTokenize(asList("12", "34"), singletonList("1234"), true);
+			testTokenize(asList("12.", "34"), singletonList("12.34"), true);
 
-		testTokenize(asList("12.", "34"),singletonList("12.34"), true);
-
-		// SPR-16407
-		testTokenize(asList("[1", ",2,", "3]"), asList("1", "2", "3"), true);
-	}
-
-//	@Test(expected = DecodingException.class) // SPR-16521
-//	public void jsonEOFExceptionIsWrappedAsDecodingError() {
-//		Flux<DataBuffer> source = Flux.just(stringBuffer("{\"status\": \"noClosingQuote}"));
-//		Flux<TokenBuffer> tokens = Jackson2Tokenizer.tokenize(source, this.jsonFactory, false);
-//		tokens.blockLast();
-//	}
-
-
-	private void testTokenize(List<String> source, List<String> expected, boolean tokenizeArrayElements) {
-
-		try {
-			List<TreeNode> expectedTrees = expected.stream()
-					.map(s -> {
-						try {
-							return objectReader.readTree(s);
-						} catch (IOException e) {
-							throw new UncheckedIOException(e);
-						}
-					}).collect(Collectors.toList());
-
-			Tokenizer tokenizer = new Tokenizer(this.jsonFactory, tokenizeArrayElements);
-
-			List<TokenBuffer> tokenBuffers = new ArrayList<>(source.size());
-
-			for(String s : source){
-				tokenBuffers.addAll(tokenizer.tokenize(stringBuffer(s)));
-			}
-
-			tokenBuffers.addAll(tokenizer.endOfInput());
-
-			List<TreeNode> actual = new ArrayList<>(source.size());
-			tokenBuffers.forEach(tokenBuffer -> {
-				try {
-					actual.add(this.objectReader.readTree(tokenBuffer.asParser()));
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			});
-
-			assertThat(actual).containsExactlyElementsOf(expectedTrees);
-
-		} catch (IOException e) {
-			throw new UncheckedIOException(e);
+			//given: top-level scalars inside array (SPR-16407)
+			//when/then:
+			testTokenize(asList("[1", ",2,", "3]"), asList("1", "2", "3"), true);
 		}
 	}
 
 	@Test
-	public void shouldReadSequence() {
+	@DisplayName("should read a sequence of top-level JSON objects")
+	void shouldReadSequence() {
+		//given: two back-to-back objects
+		//when: tokenized with array-elements true and false
+		//then: both modes return the two objects verbatim
 		testTokenize(
 				asList("{\"foo\": \"foofoo1\", \"bar\": \"barbar1\"}", "{\"foo\": \"foofoo2\", \"bar\": \"barbar2\"}"),
 				asList("{\"foo\": \"foofoo1\", \"bar\": \"barbar1\"}", "{\"foo\": \"foofoo2\", \"bar\": \"barbar2\"}"),
@@ -230,6 +203,30 @@ public class TokenizerTest {
 				asList("{\"foo\": \"foofoo1\", \"bar\": \"barbar1\"}", "{\"foo\": \"foofoo2\", \"bar\": \"barbar2\"}"),
 				asList("{\"foo\": \"foofoo1\", \"bar\": \"barbar1\"}", "{\"foo\": \"foofoo2\", \"bar\": \"barbar2\"}"),
 				false);
+	}
+
+	private void testTokenize(List<String> source, List<String> expected, boolean tokenizeArrayElements) {
+		//given:
+		List<TreeNode> expectedTrees = expected.stream()
+				.map(objectReader::readTree)
+				.collect(Collectors.toList());
+
+        List<TokenBuffer> tokenBuffers;
+        try (Tokenizer tokenizer = new Tokenizer(this.jsonFactory, tokenizeArrayElements)) {
+
+            //when:
+            tokenBuffers = new ArrayList<>(source.size());
+            for (String s : source) {
+                tokenBuffers.addAll(tokenizer.tokenize(stringBuffer(s)));
+            }
+            tokenBuffers.addAll(tokenizer.endOfInput());
+        }
+
+        List<TreeNode> actual = new ArrayList<>(source.size());
+		tokenBuffers.forEach(tokenBuffer -> actual.add(this.objectReader.readTree(tokenBuffer.asParser())));
+
+		//then:
+		assertThat(actual).containsExactlyElementsOf(expectedTrees);
 	}
 
 	private ByteBuffer stringBuffer(String value) {

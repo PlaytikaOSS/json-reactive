@@ -1,0 +1,70 @@
+# This workflow will build a Java project with Maven
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-maven
+
+name: Java CI with Maven
+
+on:
+  push:
+    branches:
+      - develop
+      - master
+  pull_request:
+    branches:
+      - develop
+      - master
+
+jobs:
+  build-jdk17:
+    runs-on: ubuntu-latest
+    name: Build project
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && github.head_ref || github.sha}}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache Maven packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'corretto'
+          java-version: '17'
+
+      - name: Check for SNAPSHOT dependencies in dependency management
+        run: |
+          mvn help:effective-pom --batch-mode --no-transfer-progress -q -Doutput=effective-pom.xml
+          # Strip default namespace so XPath queries don't need a prefix.
+          sed -i 's/xmlns="[^"]*"//g' effective-pom.xml
+          SNAPSHOTS=$(xmllint --xpath \
+            "//dependencyManagement//dependency[contains(version,'SNAPSHOT')] | //dependencies/dependency[contains(version,'SNAPSHOT')]" \
+            effective-pom.xml 2>/dev/null || true)
+          rm -f effective-pom.xml
+          if [ -n "$SNAPSHOTS" ]; then
+            echo "::error::SNAPSHOT versions found in effective POM dependencies:"
+            echo "$SNAPSHOTS"
+            exit 1
+          fi
+
+      - name: Build with Maven
+        run: |
+          mvn clean verify \
+            -Dhttp.keepAlive=false \
+            -Dmaven.wagon.http.pool=false \
+            -Dmaven.wagon.http.retryHandler.count=3 \
+            --no-snapshot-updates \
+            --batch-mode \
+            --no-transfer-progress
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
