@@ -1,7 +1,7 @@
 package reactivejson;
 
-import io.reactivex.Flowable;
-import io.reactivex.Single;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Single;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
@@ -16,13 +16,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-@DisplayName("Rx2ObjectReader")
-class Rx2ObjectReaderTest {
+@DisplayName("Rx3ObjectReader")
+class Rx3ObjectReaderTest {
 
 	private static final int CHUNK_SIZE = 5;
 
 	private final ObjectMapper objectMapper = JsonMapper.builder().build();
-	private final Rx2ObjectReader reader = new Rx2ObjectReader(new JsonFactory());
+	private final Rx3ObjectReader reader = new Rx3ObjectReader(new JsonFactory());
 
 	@Test
 	@DisplayName("should read a single entity from a chunked publisher")
@@ -97,7 +97,6 @@ class Rx2ObjectReaderTest {
 
 		//then:
 		testEntitiesRed.test()
-				.assertSubscribed()
 				.assertValue(values -> Arrays.equals(values, testEntities))
 				.assertNoErrors()
 				.assertComplete();
