@@ -4,7 +4,7 @@
 
     <groupId>com.playtika.reactivejson</groupId>
     <artifactId>json-reactive</artifactId>
-    <version>0.0.5-SNAPSHOT</version>
+    <version>0.4.0</version>
     <packaging>pom</packaging>
 
     <modules>
